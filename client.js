@@ -103,6 +103,50 @@
             });
         };
         
+        this.getNewSessionObj = function(hash, exp, length, base)
+        {
+            var _this = this,
+
+                newSess = {
+                    sessionID: null,
+                    hash:      hash,
+                    exp:       exp,
+                    length:    length,
+                    base:      base,
+
+                    new: function(callback)
+                    {
+                        var __this = this;
+                        _this.new(function(err, sessID)
+                        {
+                            if(!err) __this.sessionID = sessID;
+
+                            callback && callback(err, sessID);
+
+                        }, hash, exp, length, base);
+                    },
+                    check: function(callback)
+                    {
+                        _this.check(callback, this.hash, this.sessionID);
+                    },
+                    set: function(callback, key, val)
+                    {
+                        _this.set(callback, this.hash, this.sessionID, key, val);
+                    },
+                    get: function(callback, key)
+                    {
+                        _this.get(callback, this.hash, this.sessionID, key);
+                    },
+                    close: function(callback)
+                    {
+                        _this.close(callback, this.hash, this.sessionID);
+                    }
+                };
+            
+            newSess.new();
+            return newSess;
+        };
+        
         this.new = function(callback, hash, exp, length, base)
         {
             let id  = genID();
