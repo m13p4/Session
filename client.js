@@ -123,7 +123,7 @@
 
                             callback && callback(err, sessID);
 
-                        }, hash, exp, length, base);
+                        }, this.hash, this.exp, this.length, this.base);
                     },
                     check: function(callback)
                     {
