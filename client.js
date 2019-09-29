@@ -1,10 +1,8 @@
-/*
- * Session Client
+/* Session Client
  * 
  * @author Meliantchenkov Pavel
  * @version 1.0
  */
-
 (function(___)
 {
     const VERSION = "1.0.not_tested";
@@ -12,6 +10,7 @@
         HOST: "127.0.0.1",
         PORT: 12345
     };
+    const _sep = "\t;;\f.?!;;\n";
     
     const net = require('net');
     const _ = require('./helper.js');
@@ -21,7 +20,7 @@
     
     function SessionClient() 
     {
-        var list = {}, _cnt = 0, _sep = "\t;;\f.?!;;\n";
+        var list = {}, _cnt = 0;
         
         this.conf = null;
         this.client = null;
@@ -31,50 +30,43 @@
             return _.intToStr(_cnt++, 73);
         }
         
-        function handleMessage(dataStr)
+        function handleMessage(dataArr)
         {
-            try
+            for(let i = 0; i < dataArr.length; i++)
             {
-                var dataArr = dataStr.split(_sep), i = 0;
-            
-                for(; i < dataArr.length; i++)
+                let data = dataArr[i].trim();
+
+                if(data.length > 0)
                 {
-                    let data = dataArr[i].trim();
-
-                    if(data.length > 0)
+                    try
                     {
-                        try
+                        data  = JSON.parse(data);
+
+                        let id    = data[0] || false;
+                        let type  = data[1] || "";
+
+                        let callback = id && list[id];
+
+                        if(callback)
                         {
-                            data  = JSON.parse(data);
-                            
-                            let id    = data[0] || false;
-                            let type  = data[1] || "";
+                            if(type === "get")       callback(false, data[2], data[3]);
+                            else if(type === "err")  callback({
+                                message: data[2],
+                                req: data[3]
+                            });
+                            else callback(false, data[2]);
 
-                            let callback = id && list[id];
-
-                            if(callback)
-                            {
-                                if(type === "get")       callback(false, data[2], data[3]);
-                                else if(type === "err")  callback({
-                                    message: data[2],
-                                    req: data[3]
-                                });
-                                else callback(false, data[2]);
-
-                                list[id] = null;
-                                delete list[id];
-                            }
+                            list[id] = null;
+                            delete list[id];
                         }
-                        catch(e) {console.log(e, "    ", data);}
                     }
+                    catch(e) {console.log(e, "    ", data);}
                 }
             }
-            catch(e) {console.log(e, dataStr);}
         }
         
         this.send = function(req)
         {
-            //console.log("send => ",req);
             this.client.write(JSON.stringify(req) + _sep);
         };
         
@@ -99,12 +91,12 @@
                     
                     dataStr += chunk;
                     
-                    //console.log(dataStr);
-                    
                     if(dataStr.indexOf(_sep) > -1)
                     {
-                        handleMessage(dataStr);
-                        dataStr = "";
+                        let dataArr = dataStr.split(_sep);
+                        dataStr = dataArr.pop();
+                        
+                        handleMessage(dataArr);
                     }
                 }
                 catch(e) { /* empty */ }
