@@ -27,7 +27,7 @@
         
         function genID()
         {
-            return _.intToStr(_cnt++, 73);
+            return _.intToStr(_cnt++);
         }
         
         function handleMessage(dataArr)
