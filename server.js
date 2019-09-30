@@ -12,12 +12,18 @@
         defaultKeyLength:   50,
         largestKeyLength:   255, // 0xff
         
-        PORT: 12345
+        PORT: 12345,
+        MASTER_PORT: 54321,
+        
+        useInCluster: false
     };
     const _sep = "\t;;\f.?!;;\n";
     
+    const cluster = require("cluster");
     const net = require('net');
     const _ = require('./helper.js');
+    
+    const isClusterMaster = cluster.isMaster;
     
     
     function checkSession(_sessions, sid, hash, withoutExp)
@@ -38,7 +44,8 @@
         return res;
     }
     
-    function handleMessage(_CONF, _sessions, socket, dataArr)
+    //@todo: implement worker handling
+    async function handleMessage(_CONF, _sessions, socket, dataArr, isWorker)
     {
         for(let i = 0; i < dataArr.length; i++)
         {
@@ -152,7 +159,7 @@
         }
     }
     
-    function _run(_CONF, _sessions, _sockets)
+    function _run(_CONF, _sessions, _sockets, isWorker)
     {
         var Server = net.createServer(function(socket)
         {
@@ -175,7 +182,7 @@
                         let dataArr = dataStr.split(_sep);
                         dataStr = dataArr.pop();
                         
-                        handleMessage(_CONF, _sessions, socket, dataArr);
+                        handleMessage(_CONF, _sessions, socket, dataArr, isWorker);
                     }
                 }
                 catch(e) { /* empty */ }
@@ -189,11 +196,22 @@
             
             socket.on("error", function(err)
             {
-                console.log();
+                console.log(err);
             });
         });
         
-        Server.listen(_CONF.PORT);
+        let clbk = function()
+        {
+            console.log("[" + (new Date()).toLocaleString() + "] SessionServer"
+                            + (isWorker ? " Worker":"")+" runs on port "
+                            + (_CONF.useInCluster && isClusterMaster ? _CONF.MASTER_PORT : _CONF.PORT)
+                       );
+        };
+        
+        if(_CONF.useInCluster && isClusterMaster)
+            Server.listen(_CONF.MASTER_PORT, "127.0.0.1", clbk);
+        else
+            Server.listen(_CONF.PORT, clbk);
         
         return Server;
     };
@@ -208,19 +226,45 @@
         this.sessions = {};
         this.sockets = [];
         
+        this.socket = null;
+        this.isWorker = false;
+        
         this.run = function(cnf)
         {
-            this.conf   = _.mergeConf(CONF, cnf);
-            this.server = _run(this.conf, this.sessions, this.sockets);
+            this.conf = _.mergeConf(CONF, cnf);
             
-            var _this = this;
-            intervalID = setInterval(function()
+            if(isClusterMaster || !this.conf.useInCluster)
             {
-                for(let key in _this.sessions)
+                this.server = _run(this.conf, this.sessions, this.sockets);
+
+                var _this = this;
+                intervalID = setInterval(function()
                 {
-                    let sess = _this.sessions[key];
-                }
-            }, 1000 * 10);
+                    let now  = Date.now();
+
+                    for(let key in _this.sessions)
+                        if(_this.sessions[key].exp < now)
+                        {
+                            _this.sessions[key] = null;
+                            delete _this.sessions[key];
+                        }
+
+                }, 1000 * 10);
+            }
+            else if(this.conf.useInCluster)
+            {
+                this.isWorker = true;
+                this.server = _run(this.conf, this.sessions, this.sockets, true);
+                
+                this.socket = new net.Socket();
+            
+                this.socket.connect(this.conf.MASTER_PORT, "127.0.0.1", function() 
+                {
+                    console.log("[" + (new Date()).toLocaleString() + "] SessionServer Worker -> connected to SessionServer Master");
+                });
+            }
+            
+            //console.log(isClusterMaster);
         };
         
         this.stop = function()
