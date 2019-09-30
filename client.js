@@ -113,37 +113,49 @@
                     exp:       exp,
                     length:    length,
                     base:      base,
+                    wait:      [],
 
                     new: function(callback)
                     {
                         var __this = this;
+                        __this.sessionID = null;
                         _this.new(function(err, sessID)
                         {
                             if(!err) __this.sessionID = sessID;
 
                             callback && callback(err, sessID);
-
+                            
+                            let wait = __this.wait; __this.wait = [];
+                            for(let i = 0; i < wait.length; i++)
+                                if(wait[i][0] in __this) 
+                                    __this[wait[i][0]].apply(__this, wait[i][1]);
+                            
                         }, this.hash, this.exp, this.length, this.base);
                     },
                     check: function(callback)
                     {
-                        _this.check(callback, this.hash, this.sessionID);
+                        if(!this.sessionID) this.wait.push(["ckeck", arguments]);
+                        else _this.check(callback, this.hash, this.sessionID);
                     },
                     set: function(callback, key, val)
                     {
-                        _this.set(callback, this.hash, this.sessionID, key, val);
+                        if(!this.sessionID) this.wait.push(["set", arguments]);
+                        else _this.set(callback, this.hash, this.sessionID, key, val);
                     },
                     get: function(callback, key)
                     {
-                        _this.get(callback, this.hash, this.sessionID, key);
+                        if(!this.sessionID) this.wait.push(["get", arguments]);
+                        else _this.get(callback, this.hash, this.sessionID, key);
                     },
                     close: function(callback)
                     {
-                        _this.close(callback, this.hash, this.sessionID);
+                        if(!this.sessionID) this.wait.push(["close", arguments]);
+                        else _this.close(callback, this.hash, this.sessionID);
+                        
                     }
                 };
             
-            newSess.new();
+            newSess.new(function(err, res){ console.log(err, res); });
             return newSess;
         };
         
