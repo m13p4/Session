@@ -127,30 +127,29 @@
                                 
                                 let wait = __this.wait; __this.wait = [];
                                 for(let i = 0; i < wait.length; i++)
-                                    if(wait[i][0] in __this) 
-                                        __this[wait[i][0]].apply(__this, wait[i][1]);
+                                    wait[i][0].apply(__this, wait[i][1]);
                             }
                             
                         }, this.hash, this.exp, this.length, this.base);
                     },
                     check: function(callback)
                     {
-                        if(!this.sessionID) this.wait.push(["ckeck", arguments]);
+                        if(!this.sessionID) this.wait.push([this.check, arguments]);
                         else _this.check(callback, this.hash, this.sessionID);
                     },
                     set: function(callback, key, val)
                     {
-                        if(!this.sessionID) this.wait.push(["set", arguments]);
+                        if(!this.sessionID) this.wait.push([this.set, arguments]);
                         else _this.set(callback, this.hash, this.sessionID, key, val);
                     },
                     get: function(callback, key)
                     {
-                        if(!this.sessionID) this.wait.push(["get", arguments]);
+                        if(!this.sessionID) this.wait.push([this.get, arguments]);
                         else _this.get(callback, this.hash, this.sessionID, key);
                     },
                     close: function(callback)
                     {
-                        if(!this.sessionID) this.wait.push(["close", arguments]);
+                        if(!this.sessionID) this.wait.push([this.close, arguments]);
                         else _this.close(callback, this.hash, this.sessionID);
                     }
                 };
