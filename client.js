@@ -59,8 +59,7 @@
                             list[id] = null;
                             delete list[id];
                         }
-                    }
-                    catch(e) {console.log(e, "    ", data);}
+                    } catch(e) {console.log(e, "    ", data);}
                 }
             }
         }
@@ -98,8 +97,7 @@
                         
                         handleMessage(dataArr);
                     }
-                }
-                catch(e) { /* empty */ }
+                } catch(e) { /* empty */ }
             });
         };
         
@@ -121,14 +119,17 @@
                         __this.sessionID = null;
                         _this.new(function(err, sessID)
                         {
-                            if(!err) __this.sessionID = sessID;
-
                             callback && callback(err, sessID);
                             
-                            let wait = __this.wait; __this.wait = [];
-                            for(let i = 0; i < wait.length; i++)
-                                if(wait[i][0] in __this) 
-                                    __this[wait[i][0]].apply(__this, wait[i][1]);
+                            if(!err)
+                            {
+                                __this.sessionID = sessID;
+                                
+                                let wait = __this.wait; __this.wait = [];
+                                for(let i = 0; i < wait.length; i++)
+                                    if(wait[i][0] in __this) 
+                                        __this[wait[i][0]].apply(__this, wait[i][1]);
+                            }
                             
                         }, this.hash, this.exp, this.length, this.base);
                     },
@@ -151,11 +152,10 @@
                     {
                         if(!this.sessionID) this.wait.push(["close", arguments]);
                         else _this.close(callback, this.hash, this.sessionID);
-                        
                     }
                 };
             
-            newSess.new(function(err, res){ console.log(err, res); });
+            newSess.new();
             return newSess;
         };
         
