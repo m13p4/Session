@@ -45,7 +45,7 @@
     }
     
     //@todo: implement worker handling
-    async function handleMessage(_CONF, _sessions, socket, dataArr, isWorker)
+    async function handleMessage(_CONF, _sessions, socket, dataArr, isWorker, isMaster)
     {
         for(let i = 0; i < dataArr.length; i++)
         {
@@ -66,7 +66,56 @@
 
                         let res  = [id];
 
-                        if(type === "new" && hash.length > 0)
+                        if(isMaster && type === "data")
+                        {
+                            res.push("data"); sess = hash;
+                            
+                            if(sess in _sessions)
+                            {
+                                let session = _sessions[sess];
+                                
+                                res.push({
+                                    key:  session.key,
+                                    hash: session.hash,
+                                    
+                                    exp:  session.exp, 
+                                    _exp: session._exp
+                                });
+                            }
+                        }
+                        else if(isMaster && type === "dataSet")
+                        {
+                            res.push("dataSet"); sess = hash;
+                            
+                            let key = 3 in data ? data[3] : null;
+                            let val = 4 in data ? data[4] : null;
+                            
+                            if(sess in _sessions)
+                                _sessions[sess]._var[key] = val;
+                        }
+                        else if(isMaster && type === "dataGet")
+                        {
+                            res.push("dataGet"); sess = hash;
+                            
+                            let key = 3 in data ? data[3] : null;
+                            
+                            if(sess in _sessions)
+                            {
+                                let session = _sessions[sess];
+                                
+                                res.push({
+                                    key:  session.key,
+                                    hash: session.hash,
+                                    
+                                    exp:  session.exp, 
+                                    _exp: session._exp,
+                                    
+                                    val:  key in session._var ? 
+                                          session._var[key] : null
+                                });
+                            }
+                        }
+                        else if(type === "new" && hash.length > 0)
                         {
                             res.push("new");
 
@@ -151,7 +200,7 @@
                             res.push(data);
                         }
 
-                        res.length > 0 && socket.write(JSON.stringify(res)+_sep);
+                        res.length > 0 && socket.write(JSON.stringify(res) + _sep);
                     }
                 }
                 catch(e){ /* empty */ }
@@ -159,7 +208,7 @@
         }
     }
     
-    function _run(_CONF, _sessions, _sockets, isWorker)
+    function _run(_CONF, _sessions, _sockets, isWorker, isMaster)
     {
         var Server = net.createServer(function(socket)
         {
@@ -182,7 +231,7 @@
                         let dataArr = dataStr.split(_sep);
                         dataStr = dataArr.pop();
                         
-                        handleMessage(_CONF, _sessions, socket, dataArr, isWorker);
+                        handleMessage(_CONF, _sessions, socket, dataArr, isWorker, isMaster);
                     }
                 }
                 catch(e) { /* empty */ }
@@ -228,6 +277,7 @@
         
         this.socket = null;
         this.isWorker = false;
+        this.isMaster = false;
         
         this.run = function(cnf)
         {
@@ -235,7 +285,8 @@
             
             if(isClusterMaster || !this.conf.useInCluster)
             {
-                this.server = _run(this.conf, this.sessions, this.sockets);
+                this.isMaster = !!this.conf.useInCluster;
+                this.server = _run(this.conf, this.sessions, this.sockets, false, this.isMaster);
 
                 var _this = this;
                 intervalID = setInterval(function()
