@@ -1,5 +1,4 @@
-/*
- * Helper methods.
+/* helper functions
  * 
  * @author Meliantchenkov Pavel
  * @version 1.0
@@ -11,14 +10,16 @@
     
     function _intToStr(int, base)
     {
-        //console.log(typeof int, int);
         let isBigInt = _useBigInt && typeof int === "bigint";
+        
+        if((typeof int !== "number" && !isBigInt) || int < 0)
+            throw new Error("int must be a number or bigint 'int >= 0'");
+        if(typeof base !== "undefined" && (typeof base !== "number" || base < 2))
+            throw new Error("base must be a number between 2 and "+_intStr.length+". default: "+_intStr.length);
         
         if(!isBigInt) int = Math.floor(int);
         
-        if(base < 0) base = -base;
-        
-        if(!base || base > _intStr.length || base < 2) 
+        if(!base || base > _intStr.length) 
             base = _intStr.length;
         
         if(base <= 36) return int.toString(base);
@@ -26,25 +27,28 @@
         
         if(isBigInt) base = BigInt(base);
         
-        let result = "";
+        let res = "";
         let mod;
         
         while(int > 0)
         {
-            mod    = int % base;
-            int    = isBigInt ? int / base : Math.floor(int / base);
-            result = _intStr.charAt(Number(mod)) + result;
+            mod = int % base;
+            int = int / base;
+            res = _intStr.charAt(Number(mod)) + res;
+            
+            if(!isBigInt) int = Math.floor(int);
         }
-        
-        return result;
+        return res;
     }
     
-    //hgdfhjgf
     function _strToInt(str, base)
     {
-        if(base < 0) base = -base;
+        if(typeof str !== "string")
+            throw new Error("str must be of type string");
+        if(typeof base !== "undefined" && (typeof base !== "number" || base < 2))
+            throw new Error("base must be a number between 2 and "+_intStr.length+". default: "+_intStr.length);
         
-        if(!base || base > _intStr.length || base < 2) 
+        if(!base || base > _intStr.length) 
             base = _intStr.length;
         
         if(base <= 36) return parseInt(str, base);
@@ -52,28 +56,28 @@
         
         let isBigInt = false;
         
-        let result = 0;
+        let res = 0;
         let add;
         let tmp;
         
+        base = Math.floor(base);
         for(let i = 0; i < str.length; i++)
         {
             add = _intStr.indexOf(str.charAt(i));
-            tmp = result * base;
+            tmp = res * base;
             
             if(_useBigInt && !isBigInt && tmp > 9e15) 
             {
                 isBigInt = true;
-                result   = BigInt(result);
+                res      = BigInt(res);
                 base     = BigInt(base);
                 
-                tmp = result * base;
+                tmp = res * base;
             }
             
-            result = tmp + (isBigInt ? BigInt(add) : add);
+            res = tmp + (isBigInt ? BigInt(add) : add);
         }
-        
-        return result;
+        return res;
     }
     
     function _getRandomString(len, base)
@@ -83,22 +87,19 @@
         while(str.length < len)
         {
             if(_useBigInt)
-                str += _intToStr(BigInt(Math.floor(Math.random() * 9e15)) * 999999999999999n, base);
+                str += _intToStr(BigInt(Math.floor(Math.random() * 9e15)) * BigInt("999999999999999"), base);
             else
                 str += _intToStr(Math.random() * 9e15, base);
         }
-
         return str.substr(0, len);
     }
-    
     
     function _mergeConf(cnf1, cnf2)
     {
         var cnf = JSON.parse(JSON.stringify(cnf1));
         
-        //console.log(cnf, cnf2);
-            for(var i in cnf2) 
-                cnf[i] = cnf2[i];
+        for(var i in cnf2) 
+            cnf[i] = cnf2[i];
         
         return cnf;
     }
@@ -109,5 +110,4 @@
         strToInt:        _strToInt,
         mergeConf:       _mergeConf
     };
-    
 })(typeof module !== "undefined" ? module : {});
