@@ -15,7 +15,6 @@
     const net = require('net');
     const _ = require('./helper.js');
     
-    
     function emptyCallback(){ /* empty */ }
     
     function SessionClient() 
@@ -49,7 +48,8 @@
 
                         if(callback)
                         {
-                            if(type === "get")       callback(false, data[2], data[3]);
+                            if(callback.raw && type !== "err") callback(false, data);
+                            else if(type === "get")  callback(false, data[2], data[3]);
                             else if(type === "err")  callback({
                                 message: data[2],
                                 req: data[3]
@@ -151,6 +151,11 @@
                     {
                         if(!this.sessionID) this.wait.push([this.close, arguments]);
                         else _this.close(callback, this.hash, this.sessionID);
+                    },
+                    req: function(callback, args)
+                    {
+                        if(!this.sessionID) this.wait.push([this.req, arguments]);
+                        else _this.req(callback, args);
                     }
                 };
             
@@ -218,6 +223,17 @@
             let req = [id, "ping"];
             
             list[id] = callback || emptyCallback;
+            
+            this.send(req);
+        };
+        
+        this.req = function(callback, args)
+        {
+            let id  = genID();
+            let req = [id].concat(args);
+            
+            list[id] = callback || emptyCallback;
+            list[id].raw = true;
             
             this.send(req);
         };
