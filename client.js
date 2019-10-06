@@ -101,6 +101,15 @@
             });
         };
         
+        this.disconnect = function()
+        {
+            _cnt = 0; list = {};
+            
+            this.client.end();
+            this.client = null;
+            this.conf   = null;
+        };
+        
         this.getNewSessionObj = function(hash, exp, length, base)
         {
             var _this = this,
