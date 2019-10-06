@@ -5,7 +5,7 @@
  */
 (function(module)
 {
-    var _intStr = "0123456789abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ-_.~!*=+|$#()[]{}<>:,;?&%§²³@°^/\\'\"€µ¿",
+    var _intStr = "0123456789abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ-_.~!*=,;()$:+@#/&?'\"\\[]{}|<>%§²³°^€µ¿",
         _useBigInt = typeof BigInt === "function";
     
     function _intToStr(int, base)
@@ -82,7 +82,7 @@
     
     function _getRandomString(len, base)
     {
-        var str = ""; len = len || 16; base = base || 68;
+        var str = ""; len = len || 16; base = base || 74;
 
         while(str.length < len)
         {
@@ -91,7 +91,7 @@
             else
                 str += _intToStr(Math.random() * 9e15, base);
         }
-        return str.substr(0, len);
+        return str.substr(Math.random() * (str.length - len), len);
     }
     
     function _mergeConf(cnf1, cnf2)
