@@ -9,7 +9,7 @@
     const CONF = {
         expTime:            1000 * 20,
         
-        defaultKeyLength:   50,
+        defaultKeyLength:   16,
         largestKeyLength:   255, // 0xff
         
         PORT: 12345
@@ -59,6 +59,7 @@
                     {
                         _worker.callbacks[_i][id](res);
                         _worker.callbacks[_i].length--;
+                        
                         delete _worker.callbacks[_i][id];
                     }
                 });
@@ -159,7 +160,7 @@
                                             workerCall(callback, "rndstr", [keyLength, base]);
                                         else
                                         {
-                                            _this.sessions[newSession.key] = newSession;
+                                            _this.sessions[wRes] = newSession;
                                             newSession.key = wRes;
                                             res.push(wRes);
                                             socket.write(JSON.stringify(res) + _sep);
@@ -250,7 +251,6 @@
             var Server = net.createServer(function(socket)
             {
                 var dataStr = "";
-                
                 _this.sockets.push(socket);
 
                 socket.on("data", function(_d)
