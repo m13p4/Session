@@ -26,7 +26,8 @@
         let WorkerThreads = require("worker_threads");
         Worker = WorkerThreads.Worker;
     }
-    catch(e){}
+    catch(e){ /* empty */ }
+    const staticWorker = require('./serverWorker.js');
     
     function SessionServer() 
     {
@@ -59,35 +60,15 @@
                     {
                         _worker.callbacks[_i][id](res);
                         _worker.callbacks[_i].length--;
-                        
+
                         delete _worker.callbacks[_i][id];
                     }
                 });
-
                 _worker.worker.push(worker);
                 _worker.callbacks.push({length:0});
             }
         }
-        
-        function _checkSession(session, hash, withoutExp)
-        {
-            let now = Date.now();
 
-            return session.hash === hash
-                   && (!withoutExp || session.exp < now);
-        }
-
-        function checkSession(sid, hash, withoutExp)
-        {
-            let res = _this.sessions[sid] ? 
-                        _checkSession(_this.sessions[sid], hash, withoutExp) : false; 
-
-            if(!res && _this.sessions[sid]) delete _this.sessions[sid];
-            else if(res && !withoutExp) _this.sessions[sid].exp = Date.now() + _this.sessions[sid]._exp;
-
-            return res;
-        }
-        
         function workerCall(callback, type, args)
         {
             if(_worker)
@@ -107,6 +88,72 @@
             }
         }
 
+        function sendRes(data, socket, res)
+        {
+            let sid  = data[3] || "";
+            let type = data[1] || "";
+                        
+            if(type === "new")
+            {
+                let newSess = res.pop();
+
+                if(_this.sessions[newSess.key])
+                {
+                    let keyLength = Number.isInteger(data[4]) && data[4] > 0 ? data[4] : _CONF.defaultKeyLength;
+                    let base; if(Number.isInteger(data[5])) base = data[5];
+
+                    if(_worker)
+                    {
+                        let callback = function(wRes)
+                        {
+                            if(wRes in _this.sessions)
+                                workerCall(callback, "rndstr", [keyLength, base]);
+                            else
+                            {
+                                newSess.key = wRes;
+                                
+                                _this.sessions[newSess.key] = newSess;
+                                res.push(newSess.key);
+                                socket.send(res);
+                            }
+                        };
+                        return workerCall(callback, "rndstr", [keyLength, base]);
+                    }
+                    else while(_this.sessions[newSess.key])
+                        newSess.key = _.getRandomString(keyLength, base);
+                }
+
+                _this.sessions[newSess.key] = newSess;
+                res.push(newSess.key);
+            }
+            else if(res[1] !== "err" && res[1] !== "check" && res[2] === true)
+            {
+                if(type === "set")
+                {
+                    let key = 4 in data ? data[4] : null;
+                    let val = 5 in data ? data[5] : null;
+
+                    if(typeof key !== "string") key = JSON.stringify(key);
+                    _this.sessions[sid]._var[key] = val;
+                }
+                else if(type === "get")
+                {
+                    let key = 4 in data ? data[4] : null;
+                    let val = null;
+
+                    if(typeof key !== "string") key = JSON.stringify(key);
+
+                    if(key && key in _this.sessions[sid]._var)
+                        val = _this.sessions[sid]._var[key];
+
+                    res.splice(res.length - 1, 1, key, val);
+                }
+                else if(type === "close") delete _this.sessions[sid];
+            }
+            
+            res.length > 0 && socket.send(res);
+        }
+        
         function handleMessage(socket, dataArr)
         {
             let _CONF = _this.conf;
@@ -120,126 +167,25 @@
                     try
                     {
                         data = JSON.parse(data);
-
-                        if(data instanceof Array && data.length > 0)
+                        
+                        let sid  = data[3] || "";
+                        let type = data[1] || "";
+                        let sess = type && type !== "new" && _this.sessions[sid] ? 
+                            {
+                                hash: _this.sessions[sid].hash,
+                                exp:  _this.sessions[sid].exp
+                            } : undefined; 
+                        
+                        if(_worker)
+                            workerCall(function(res)
+                            {
+                                sendRes(data, socket, res);
+                            }, "handle", [_CONF, sess, data]);
+                        else
                         {
-                            let id   = data[0];
-                            let type = data[1] || "";
-                            let hash = data[2] || "";
-                            let sess = data[3] || "";
-
-                            let res  = [id];
-                            let resReturn = true;
-
-                            if(type === "new" && hash.length > 0)
-                            {
-                                res.push("new");
-
-                                let expTime   = Number.isInteger(sess) && sess > 0 ? sess : _CONF.expTime;
-                                let keyLength = Number.isInteger(data[4]) && data[4] > 0 ? data[4] : _CONF.defaultKeyLength;
-                                let base; if(Number.isInteger(data[5])) base = data[5];
-
-                                if(keyLength > _CONF.largestKeyLength) keyLength = _CONF.largestKeyLength;
-
-                                let newSession = {
-                                    key:  null,
-                                    hash: hash,
-                                    exp:  Date.now() + expTime,
-
-                                    _exp: expTime,
-                                    _var: {}
-                                };
-
-                                if(_worker)
-                                {
-                                    resReturn = false;
-
-                                    let callback = function(wRes)
-                                    {
-                                        if(wRes in _this.sessions)
-                                            workerCall(callback, "rndstr", [keyLength, base]);
-                                        else
-                                        {
-                                            _this.sessions[wRes] = newSession;
-                                            newSession.key = wRes;
-                                            res.push(wRes);
-                                            socket.write(JSON.stringify(res) + _sep);
-                                        }
-                                    }
-                                    workerCall(callback, "rndstr", [keyLength, base]);
-                                }
-                                else 
-                                {
-                                    newSession.key = _.getRandomString(keyLength, base);
-
-                                    while(_this.sessions[newSession.key])
-                                        newSession.key = _.getRandomString(keyLength, base);
-
-                                    _this.sessions[newSession.key] = newSession;
-                                    res.push(newSession.key);
-                                }
-                            }
-                            else if(type === "check" && hash.length > 0 && sess.length > 0)
-                            {
-                                res.push("check");
-                                res.push(checkSession(sess, hash));
-                            }
-                            else if(type === "close" && hash.length > 0 && sess.length > 0)
-                            {
-                                res.push("close");
-
-                                if(checkSession(sess, hash, true))
-                                {
-                                    _this.sessions[sess] = null;
-                                    delete _this.sessions[sess];
-
-                                    res.push(true);
-                                }
-                                else res.push(false);
-                            }
-                            else if(type === "set" && hash.length > 0 && sess.length > 0)
-                            {
-                                res.push("set");
-                                res.push(false);
-
-                                let key = 4 in data ? data[4] : null;
-                                let val = 5 in data ? data[5] : null;
-
-                                if(checkSession(sess, hash))
-                                {
-                                    if(typeof key !== "string") key = JSON.stringify(key);
-
-                                    _this.sessions[sess]._var[key] = val;
-                                    res[2] = true;
-                                }
-                            }
-                            else if(type === "get" && hash.length > 0 && sess.length > 0)
-                            {
-                                res.push("get");
-
-                                let key = 4 in data ? data[4] : null;
-                                let val = null;
-
-                                if(checkSession(sess, hash))
-                                {
-                                    if(typeof key !== "string") key = JSON.stringify(key);
-
-                                    if(key && _this.sessions[sess]._var[key])
-                                        val = _this.sessions[sess]._var[key];
-                                }
-
-                                res.push(key);
-                                res.push(val);
-                            }
-                            else if(type === "ping") res.push("PING");
-                            else
-                            {
-                                res.push("err");
-                                res.push("incomprehensible request");
-                                res.push(data);
-                            }
-
-                            resReturn && res.length > 0 && socket.write(JSON.stringify(res) + _sep);
+                            let res = staticWorker.handleMessage(_CONF, sess, data);
+                            
+                            sendRes(data, socket, res);
                         }
                     } catch(e){ /* empty */ }
                 }
@@ -252,6 +198,15 @@
             {
                 var dataStr = "";
                 _this.sockets.push(socket);
+
+                socket.send = function(toSend)
+                {
+                    try
+                    {
+                        this.write(JSON.stringify(toSend) + _sep);
+                    }
+                    catch(e){ console.log("sendErr", e); }
+                };
 
                 socket.on("data", function(_d)
                 {
@@ -278,18 +233,11 @@
                 socket.on("error", function(err){ console.log(err); });
             });
 
-            let clbk = function()
+            Server.listen(_this.conf.PORT, function()
             {
-                console.log("[" + (new Date()).toLocaleString() + "] SessionServer"
-                                + (_this.isWorker ? " Worker": _this.isMaster ? " Master": "") + " runs on port "
-                                + (_this.conf.useInCluster && _this.isMaster ? _this.conf.MASTER_PORT : _this.conf.PORT));
-            };
-            
-            if(_this.conf.useInCluster && _this.isMaster)
-                Server.listen(_this.conf.MASTER_PORT, "127.0.0.1", clbk);
-            else
-                Server.listen(_this.conf.PORT, clbk);
-
+                console.log("[" + (new Date()).toLocaleString() + 
+                            "] SessionServer runs on port " + _this.conf.PORT);
+            });
             return Server;
         }
         
